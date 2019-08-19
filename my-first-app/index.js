@@ -46,43 +46,43 @@ module.exports = app => {
     // context.github.checks.create
   })
 
-  // using this one to test out stuff
-  app.on('pull_request', async context => {
-    const { github } = context
-    if (context.payload.action != 'opened') {
-      const pr = context.payload.pull_request; 
-      const org = pr.base.repo.owner.login;
-      const user = pr.user.login;
-      const repo = pr.base.repo.name;
+  // // using this one to test out stuff
+  // app.on('pull_request', async context => {
+  //   const { github } = context
+  //   if (context.payload.action != 'opened') {
+  //     const pr = context.payload.pull_request; 
+  //     const org = pr.base.repo.owner.login;
+  //     const user = pr.user.login;
+  //     const repo = pr.base.repo.name;
 
-      const files = await context.github.pullRequests.listFiles({ number: pr.number, owner: org, repo: repo })
-      context.log({ 'files': files })
+  //     const files = await context.github.pullRequests.listFiles({ number: pr.number, owner: org, repo: repo })
+  //     context.log({ 'files': files })
       
-      const isFork = pr.head.repo.fork;
-      context.log({ 'isFork': isFork })
-      if (isFork) {
-        const issue = context.issue({ number: pr.number })
-        return github.issues.addLabels({ ...issue, labels: [externalPRLabel] })
-      }
-    }
-  })
+  //     const isFork = pr.head.repo.fork;
+  //     context.log({ 'isFork': isFork })
+  //     if (isFork) {
+  //       const issue = context.issue({ number: pr.number })
+  //       return github.issues.addLabels({ ...issue, labels: [externalPRLabel] })
+  //     }
+  //   }
+  // })
 
-  // assign external PR to individual for review
-  app.on('pull_request.labeled', async context => {
-    const { github } = context
-    const pr = context.payload.pull_request;
-    if ( pr.labels.includes(externalPRLabel) ) {
-      // Placeholder action
-      const issue = context.issue({ number: pr.number })
-      return github.issues.addAssignees({ ...issue, assignees: ['avidan-H'] })
+  // // assign external PR to individual for review
+  // app.on('pull_request.labeled', async context => {
+  //   const { github } = context
+  //   const pr = context.payload.pull_request;
+  //   if ( pr.labels.includes(externalPRLabel) ) {
+  //     // Placeholder action
+  //     const issue = context.issue({ number: pr.number })
+  //     return github.issues.addAssignees({ ...issue, assignees: ['avidan-H'] })
 
-      // Get Team Users (content team)
+  //     // Get Team Users (content team)
 
-      // Tally assigned PRs per user
+  //     // Tally assigned PRs per user
 
-      // Assign PR to user with least assigned PRs
-    }
-  })
+  //     // Assign PR to user with least assigned PRs
+  //   }
+  // })
 
   // create new branch from content master, change base branch of external PR
   app.on('pull_request_review.submitted', async context => {
