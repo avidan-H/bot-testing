@@ -1,6 +1,49 @@
+const fs = require('fs');
+const jwt = require('jsonwebtoken');
+const YAML = require('yaml');
+// import openssl from 'openssl';
 
 const organization = 'demisto';
-const externalPRLabel = 'External-PR'
+const externalPRLabel = 'External-PR';
+// const appID = '38236';
+// const pathToPEM = '/Users/ahessing/Downloads/my-first-appp.2019-08-19.private-key.pem';
+
+var rewriteConfig = { 'reviewers': [], 'external_pr_count': 0 }
+
+/**
+ * 
+ * @param {String} pathToConfigFile 
+ */
+function getReviewer(pathToConfigFile = '../.github/config.yml') {
+  const configFile = fs.readFileSync(pathToConfigFile, 'utf-8');
+  const ymlData = YAML.parse(configFile);
+  const reviewers = ymlData.reviewers;
+  let prCounter = ymlData.external_pr_count;
+
+  // context.log({ 'ymlData': ymlData })
+  // context.log({ 'reviewers': ymlData.reviewers })
+  // context.log({ 'prCounter': prCounter })
+
+  const remainder = prCounter % reviewers.length;
+  const reviewer = reviewers[remainder];
+  return reviewer;
+}
+
+/**
+ * 
+ * @param {String} pathToConfigFile 
+ */
+function updateConfig(pathToConfigFile) {
+  const configFile = fs.readFileSync(pathToConfigFile, 'utf-8');
+  const ymlData = YAML.parse(configFile);
+  const reviewers = ymlData.reviewers;
+  let prCounter = ymlData.external_pr_count;
+  rewriteConfig.reviewers = reviewers;
+  rewriteConfig.external_pr_count = ++prCounter;
+  const newData = YAML.stringify(rewriteConfig);
+  // context.log({ 'newData': newData });
+  fs.writeFileSync(pathToConfigFile, YAML.stringify(rewriteConfig));
+}
 
 /**
  * This is the main entrypoint to your Probot app
@@ -12,6 +55,31 @@ module.exports = app => {
   app.log('Probably not')
   app.log('Yay, the app was loaded!')
 
+  // DOESNT WORK
+  // const pemContents = fs.readFileSync(pathToPEM, 'utf-8')
+  // const secretOrPrivateKey = pemContents;
+  // console.log(pemContents)
+  // // console.log(pemContents.toString('utf-8'));
+  // const payload = 'whatever';
+
+  // var signOptions = {
+  //   issuer:  appID,
+  //   // subject:  s,
+  //   // audience:  a,
+  //   expiresIn:  "10m",
+  //   algorithm:  "RS256"
+  // };
+
+  // try {
+  //   var jwToken = jwt.sign({ payload, secretOrPrivateKey, signOptions })
+  // } catch (error) {
+  //   console.log('error happened')
+  //   console.log(error)
+  // }
+
+  // console.log(jwToken)
+
+
   app.on('issues.opened', async context => {
     context.log({ event: context.event, action: context.payload })
     const issueComment = context.issue({ body: 'Thanks for opening this issue!' })
@@ -19,27 +87,50 @@ module.exports = app => {
   })
 
   app.on('pull_request.opened', async context => {
-    context.log({ event: context.event, action: context.payload })
-    const pullComment = context.issue({ body: ('How Wonderful! You\'ve just now created a Pull Request in this repository - !We Love That!\n' + String.raw`¯\_(ツ)_/¯`)})
-    context.log({ 'pullComment': pullComment })
-    const makeComment = await context.github.issues.createComment(pullComment)
-    context.log({ 'makeComment': makeComment })
-    // return context.github.issues.createComment(pullComment)
+    // const config = await context.config('config.yml')
+    // context.log({ 'config': config.reviewers })
 
-    const pr = context.payload.pull_request; 
-    const isFork = pr.head.repo.fork;
-    context.log({ 'isFork': isFork })
-    if (isFork) {
-      const issue = context.issue({ number: pr.number })
-      const addExternalLabel = await context.github.issues.addLabels({ ...issue, labels: [externalPRLabel] })
-      context.log({ 'addExternalLabel': addExternalLabel })
-      const reviewRequest = await context.github.pullRequests.createReviewRequest({ ...issue, reviewers: ['avidan-H'] })
-      context.log({ 'reviewRequest': reviewRequest })
-      return reviewRequest
-      // const assignIssue = await context.github.issues.addAssignees({ ...issue, assignees: ['avidan-H'] })
-      // context.log({ 'assignIssue': assignIssue })
-      // return assignIssue
-    }
+    const configFile = fs.readFileSync('../.github/config.yml', 'utf-8');
+    const ymlData = YAML.parse(configFile);
+    const reviewers = ymlData.reviewers;
+    let prCounter = ymlData.external_pr_count;
+
+    context.log({ 'ymlData': ymlData })
+    context.log({ 'reviewers': ymlData.reviewers })
+    context.log({ 'prCounter': prCounter })
+
+    const remainder = prCounter % reviewers.length;
+    const reviewer = reviewers[remainder];
+    context.log({ 'reviewer': reviewer }) ;
+    // ymlData.external_pr_count = prCounter++;
+    rewriteConfig.reviewers = reviewers;
+    rewriteConfig.external_pr_count = ++prCounter;
+    const newData = YAML.stringify(rewriteConfig);
+    context.log({ 'newData': newData });
+    fs.writeFileSync('../.github/config.yml', YAML.stringify(rewriteConfig));
+
+    // context.log({ event: context.event, action: context.payload })
+    // const pullComment = context.issue({ body: ('How Wonderful! You\'ve just now created a Pull Request in this repository - !We Love That!\n' + String.raw`¯\_(ツ)_/¯`)})
+    // context.log({ 'pullComment': pullComment })
+    // const makeComment = await context.github.issues.createComment(pullComment)
+    // context.log({ 'makeComment': makeComment })
+    // // return context.github.issues.createComment(pullComment)
+
+    // const pr = context.payload.pull_request; 
+    // const isFork = pr.head.repo.fork;
+    // context.log({ 'isFork': isFork })
+    // if (isFork) {
+    //   const issue = context.issue({ number: pr.number })
+    //   const addExternalLabel = await context.github.issues.addLabels({ ...issue, labels: [externalPRLabel] })
+    //   context.log({ 'addExternalLabel': addExternalLabel })
+    //   const reviewRequest = await context.github.pullRequests.createReviewRequest({ ...issue, reviewers: ['avidan-H'] })
+    //   context.log({ 'reviewRequest': reviewRequest })
+    //   return reviewRequest
+
+    //   // const assignIssue = await context.github.issues.addAssignees({ ...issue, assignees: ['avidan-H'] })
+    //   // context.log({ 'assignIssue': assignIssue })
+    //   // return assignIssue
+    // }
 
     // Check Tree for committed files and make sure that all necessary files are present
     // implement github Checks?
@@ -105,12 +196,12 @@ module.exports = app => {
         context.log('about to try and create new ref')
 
 
-        // if external PR approved, create new branch from content master named the same as the external PR branch
-        const branchName = 'refs/heads/' + pr.head.ref;
-        const commitSHA = pr.base.sha;
-        const newBranch = github.gitdata.createRef({ ...issue, ref: branchName, sha: commitSHA })
+        // // if external PR approved, create new branch from content master named the same as the external PR branch
+        // const branchName = 'refs/heads/' + pr.head.ref;
+        // const commitSHA = pr.base.sha;
+        // const newBranch = github.gitdata.createRef({ ...issue, ref: branchName, sha: commitSHA })
 
-        context.log({ 'newBranch': newBranch })
+        // context.log({ 'newBranch': newBranch })
 
       
         // change base branch of the PR to the newly created branch and merge
@@ -124,9 +215,21 @@ module.exports = app => {
         //   base?: string,
         //   maintainer_can_modify?: boolean
         // })
-        // const changeBaseBranch = github.pullRequests.update({ ...issue, base: })
+        // const changeBaseBranch = await github.pullRequests.update({ ...issue, base: ('new_base_' + pr.head.ref) })
+
+        // context.log({ 'changeBaseBranch': changeBaseBranch })
+
+        const installations = await github.apps.listInstallations()
+
+        context.log({ 'installations': installations })
+
+        // const installationToken = await github.apps.createInstallationToken()
 
         // merge
+
+        // const merge = await github.pullRequests.merge({ ...issue, merge_method: 'squash' })
+
+        // context.log({ 'merge': merge })
 
         // open new pr from new branch to master
       }
