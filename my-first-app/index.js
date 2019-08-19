@@ -20,61 +20,67 @@ module.exports = app => {
 
   app.on('pull_request.opened', async context => {
     context.log({ event: context.event, action: context.payload })
-    const pullComment = context.issue({ body: 'How Wonderful! You\'ve just now created a Pull Request in this repository - !We Love That!\n¯\\_(ツ)_/¯'})
+    const pullComment = context.issue({ body: ('How Wonderful! You\'ve just now created a Pull Request in this repository - !We Love That!\n' + String.raw`¯\_(ツ)_/¯`)})
     context.log({ 'pullComment': pullComment })
-    // const files = context.github.pullRequests.listFiles()
-    // context.log({ 'pr_files': files })
-    return context.github.issues.createComment(pullComment)
-    // const prNumber = context.payload.number
-    // context.github.pullRequests.listFiles()
+    const makeComment = await context.github.issues.createComment(pullComment)
+    context.log({ 'makeComment': makeComment })
+    // return context.github.issues.createComment(pullComment)
+
+    const pr = context.payload.pull_request; 
+    const isFork = pr.head.repo.fork;
+    context.log({ 'isFork': isFork })
+    if (isFork) {
+      const issue = context.issue({ number: pr.number })
+      const addExternalLabel = await context.github.issues.addLabels({ ...issue, labels: [externalPRLabel] })
+      context.log({ 'addExternalLabel': addExternalLabel })
+      const reviewRequest = await context.github.pullRequests.createReviewRequest({ ...issue, reviewers: ['avidan-H'] })
+      context.log({ 'reviewRequest': reviewRequest })
+      return reviewRequest
+      // const assignIssue = await context.github.issues.addAssignees({ ...issue, assignees: ['avidan-H'] })
+      // context.log({ 'assignIssue': assignIssue })
+      // return assignIssue
+    }
+
+    // Check Tree for committed files and make sure that all necessary files are present
+    // implement github Checks?
+    // context.github.checks.create
   })
 
+  // using this one to test out stuff
   app.on('pull_request', async context => {
     const { github } = context
     if (context.payload.action != 'opened') {
       const pr = context.payload.pull_request; 
-      // if(!pr || pr.state !== "open") return;
       const org = pr.base.repo.owner.login;
       const user = pr.user.login;
       const repo = pr.base.repo.name;
 
       const files = await context.github.pullRequests.listFiles({ number: pr.number, owner: org, repo: repo })
       context.log({ 'files': files })
-      // context.log({ event: context.event, action: context.payload })
-      // const prNumber = context.payload.pull_request.number
-      // const username = context.payload.pull_request.user.login
-      // const repoName = context.payload.repository.name
-      // const files = context.github.pullRequests.listFiles({ number: prNumber, owner: username, repo: repoName })
-      // context.log({ 'pr_files': files })
-      // const org = context.payload.
-      // const username = context.payload.pull_request.user.login
-      // const a = await context.github.orgs.listForUser({ username: user })
-      // const a = context.github.orgs.listMemberships()
-      // context.log({ 'a': a })
-      // // context.log({ 'context': context })
-      // // const issueComment = context.github.issues.cr
-      const repository = context.payload.repository;
-      const isFork = repository.fork;
-
-      const issue = context.issue({ number: pr.number })
-      return github.issues.addLabels({ ...issue, labels: [externalPRLabel] })
-      // const members = await context.github.orgs.listMembers({ org: organization })
-      // context.log({ 'members': members })
-      // const isMember = await context.github.orgs.checkMembership({ org: organization, username: user })
-      // context.log({ 'isMember': isMember })
-      // const membership = await context.github.orgs.
-      // context.log({ 'membership': membership })
+      
+      const isFork = pr.head.repo.fork;
+      context.log({ 'isFork': isFork })
+      if (isFork) {
+        const issue = context.issue({ number: pr.number })
+        return github.issues.addLabels({ ...issue, labels: [externalPRLabel] })
+      }
     }
-    // return context.github.issues.createComment(pullComment)
-    // const prNumber = context.payload.number
-    // context.github.pullRequests.listFiles()
   })
 
+  // assign external PR to individual for review
   app.on('pull_request.labeled', async context => {
     const { github } = context
     const pr = context.payload.pull_request;
     if ( pr.labels.includes(externalPRLabel) ) {
+      // Placeholder action
+      const issue = context.issue({ number: pr.number })
+      return github.issues.addAssignees({ ...issue, assignees: ['avidan-H'] })
 
+      // Get Team Users (content team)
+
+      // Tally assigned PRs per user
+
+      // Assign PR to user with least assigned PRs
     }
   })
 
@@ -83,16 +89,46 @@ module.exports = app => {
     const { github } = context
     const pr = context.payload.pull_request;
     const review = context.payload.review;
-    if ( pr.labels.includes(externalPRLabel) ) {
+    let isExternal = false;
+    for (const labelObject of pr.labels) {
+      if (labelObject.name === externalPRLabel) {
+        isExternal = true;
+        break;
+      }
+    }
+    // if ( pr.labels.includes(externalPRLabel) ) {
+    if ( isExternal ) {
       // if an external PR, check if submitted review was 'approved'
       if (review.state === 'approved') {
 
+        const issue = context.issue({ number: pr.number })
+        context.log('about to try and create new ref')
+
 
         // if external PR approved, create new branch from content master named the same as the external PR branch
+        const branchName = 'refs/heads/' + pr.head.ref;
+        const commitSHA = pr.base.sha;
+        const newBranch = github.gitdata.createRef({ ...issue, ref: branchName, sha: commitSHA })
+
+        context.log({ 'newBranch': newBranch })
 
       
-        // change base branch of the PR to the newly created branch
+        // change base branch of the PR to the newly created branch and merge
+        // github.pullRequests.update({
+        //   owner: string,
+        //   repo: string,
+        //   number: number,
+        //   title?: string,
+        //   body?: string,
+        //   state?: "open" | "closed",
+        //   base?: string,
+        //   maintainer_can_modify?: boolean
+        // })
+        // const changeBaseBranch = github.pullRequests.update({ ...issue, base: })
 
+        // merge
+
+        // open new pr from new branch to master
       }
     }
   })
