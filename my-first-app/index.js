@@ -11,29 +11,56 @@ const externalPRLabel = 'External-PR';
 var rewriteConfig = { 'reviewers': [], 'external_pr_count': 0 }
 
 /**
- * 
+ * Reads in the reviewers and the external PR count from a config file and selects the next reviewer
+ * round-robin style
  * @param {String} pathToConfigFile 
  */
-function getReviewer(pathToConfigFile = '../.github/config.yml') {
+function getReviewers(pathToConfigFile = '../.github/config.yml') {
   const configFile = fs.readFileSync(pathToConfigFile, 'utf-8');
   const ymlData = YAML.parse(configFile);
   const reviewers = ymlData.reviewers;
-  let prCounter = ymlData.external_pr_count;
+  return reviewers;
+  // let prCounter = ymlData.external_pr_count;
 
   // context.log({ 'ymlData': ymlData })
   // context.log({ 'reviewers': ymlData.reviewers })
   // context.log({ 'prCounter': prCounter })
 
-  const remainder = prCounter % reviewers.length;
-  const reviewer = reviewers[remainder];
-  return reviewer;
+  // const remainder = prCounter % reviewers.length;
+  // const reviewer = reviewers[remainder];
+  // return reviewer;
 }
 
 /**
  * 
+ * @param {Array} reviewers 
+ * @param {*} context 
+ */
+function selectReviewer(reviewers, externalPRs) {
+  // context.log({ 'externalPRs': externalPRs });
+  let prCounter = 0;
+  for(var i = 0; i < externalPRs.length; i++){
+    let pr = externalPRs[i];
+    for (const labelObject of pr.labels) {
+      if (labelObject.name === externalPRLabel) {
+        prCounter++;
+        break;
+      }
+    }
+  }
+  // context.log('externalPRs.length: ' + String(externalPRs.length));
+  // context.log('prCounter: ' + String(prCounter));
+  const reviewer = reviewers[prCounter % reviewers.length];
+  // updateConfig();
+  // context.log({ 'reviewer': reviewer });
+  return reviewer;
+}
+
+/**
+ * Update the external PR count in the config file. Should be called after `getReviewer` function
  * @param {String} pathToConfigFile 
  */
-function updateConfig(pathToConfigFile) {
+function updateConfig(pathToConfigFile = '../.github/config.yml') {
   const configFile = fs.readFileSync(pathToConfigFile, 'utf-8');
   const ymlData = YAML.parse(configFile);
   const reviewers = ymlData.reviewers;
@@ -55,30 +82,6 @@ module.exports = app => {
   app.log('Probably not')
   app.log('Yay, the app was loaded!')
 
-  // DOESNT WORK
-  // const pemContents = fs.readFileSync(pathToPEM, 'utf-8')
-  // const secretOrPrivateKey = pemContents;
-  // console.log(pemContents)
-  // // console.log(pemContents.toString('utf-8'));
-  // const payload = 'whatever';
-
-  // var signOptions = {
-  //   issuer:  appID,
-  //   // subject:  s,
-  //   // audience:  a,
-  //   expiresIn:  "10m",
-  //   algorithm:  "RS256"
-  // };
-
-  // try {
-  //   var jwToken = jwt.sign({ payload, secretOrPrivateKey, signOptions })
-  // } catch (error) {
-  //   console.log('error happened')
-  //   console.log(error)
-  // }
-
-  // console.log(jwToken)
-
 
   app.on('issues.opened', async context => {
     context.log({ event: context.event, action: context.payload })
@@ -90,24 +93,23 @@ module.exports = app => {
     // const config = await context.config('config.yml')
     // context.log({ 'config': config.reviewers })
 
-    const configFile = fs.readFileSync('../.github/config.yml', 'utf-8');
-    const ymlData = YAML.parse(configFile);
-    const reviewers = ymlData.reviewers;
-    let prCounter = ymlData.external_pr_count;
+    // const configFile = fs.readFileSync('../.github/config.yml', 'utf-8');
+    // const ymlData = YAML.parse(configFile);
+    // const reviewers = ymlData.reviewers;
+    // let prCounter = ymlData.external_pr_count;
 
-    context.log({ 'ymlData': ymlData })
-    context.log({ 'reviewers': ymlData.reviewers })
-    context.log({ 'prCounter': prCounter })
+    // context.log({ 'ymlData': ymlData })
+    // context.log({ 'reviewers': ymlData.reviewers })
+    // context.log({ 'prCounter': prCounter })
 
-    const remainder = prCounter % reviewers.length;
-    const reviewer = reviewers[remainder];
-    context.log({ 'reviewer': reviewer }) ;
-    // ymlData.external_pr_count = prCounter++;
-    rewriteConfig.reviewers = reviewers;
-    rewriteConfig.external_pr_count = ++prCounter;
-    const newData = YAML.stringify(rewriteConfig);
-    context.log({ 'newData': newData });
-    fs.writeFileSync('../.github/config.yml', YAML.stringify(rewriteConfig));
+    // const remainder = prCounter % reviewers.length;
+    // const reviewer = reviewers[remainder];
+    // context.log({ 'reviewer': reviewer }) ;
+    // rewriteConfig.reviewers = reviewers;
+    // rewriteConfig.external_pr_count = ++prCounter;
+    // const newData = YAML.stringify(rewriteConfig);
+    // context.log({ 'newData': newData });
+    // fs.writeFileSync('../.github/config.yml', YAML.stringify(rewriteConfig));
 
     // context.log({ event: context.event, action: context.payload })
     // const pullComment = context.issue({ body: ('How Wonderful! You\'ve just now created a Pull Request in this repository - !We Love That!\n' + String.raw`¯\_(ツ)_/¯`)})
@@ -116,21 +118,27 @@ module.exports = app => {
     // context.log({ 'makeComment': makeComment })
     // // return context.github.issues.createComment(pullComment)
 
-    // const pr = context.payload.pull_request; 
-    // const isFork = pr.head.repo.fork;
-    // context.log({ 'isFork': isFork })
-    // if (isFork) {
-    //   const issue = context.issue({ number: pr.number })
-    //   const addExternalLabel = await context.github.issues.addLabels({ ...issue, labels: [externalPRLabel] })
-    //   context.log({ 'addExternalLabel': addExternalLabel })
-    //   const reviewRequest = await context.github.pullRequests.createReviewRequest({ ...issue, reviewers: ['avidan-H'] })
-    //   context.log({ 'reviewRequest': reviewRequest })
-    //   return reviewRequest
+    const pr = context.payload.pull_request; 
+    const isFork = pr.head.repo.fork;
+    context.log({ 'isFork': isFork })
+    if (isFork) {
+      const issue = context.issue({ number: pr.number })
+      const addExternalLabel = await context.github.issues.addLabels({ ...issue, labels: [externalPRLabel] })
+      context.log({ 'addExternalLabel': addExternalLabel })
 
-    //   // const assignIssue = await context.github.issues.addAssignees({ ...issue, assignees: ['avidan-H'] })
-    //   // context.log({ 'assignIssue': assignIssue })
-    //   // return assignIssue
-    // }
+      const potentialReviewers = getReviewers();
+      const externalPRsPayload = await context.github.pullRequests.list({ ...issue, state: 'open' });
+      const externalPRs = externalPRsPayload.data;
+      const reviewer = selectReviewer(potentialReviewers, externalPRs);
+
+      const reviewRequest = await context.github.pullRequests.createReviewRequest({ ...issue, reviewers: [reviewer] })
+      context.log({ 'reviewRequest': reviewRequest })
+      return reviewRequest
+
+      // const assignIssue = await context.github.issues.addAssignees({ ...issue, assignees: ['avidan-H'] })
+      // context.log({ 'assignIssue': assignIssue })
+      // return assignIssue
+    }
 
     // Check Tree for committed files and make sure that all necessary files are present
     // implement github Checks?
