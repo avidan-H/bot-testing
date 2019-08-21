@@ -1,0 +1,12 @@
+reviewers:
+  - Itay4
+  - yaakovi
+  - yuvalbenshalom
+  - ronykoz
+external_pr_count: 6
+owner: avidan-H
+repo: bot-working
+# days, hours, and minutes are added together
+days: 0 # Number of days until PR is considered stale
+hours: 0 # Number of hours until PR is considered stale
+minutes: 0 # Number of minutes until PR is considered stale
