@@ -9,11 +9,8 @@ const externalPRLabel = 'Contribution';
 // const appID = '38236';
 // const pathToPEM = '/Users/ahessing/Downloads/my-first-appp.2019-08-19.private-key.pem';
 
-var rewriteConfig = { 'reviewers': [], 'external_pr_count': 0 }
-
 /**
- * Reads in the reviewers and the external PR count from a config file and selects the next reviewer
- * round-robin style
+ * Reads in potential reviewer list from config file
  * @param {String} pathToConfigFile 
  */
 function getReviewers(pathToConfigFile = './.github/config.yml') {
@@ -21,21 +18,12 @@ function getReviewers(pathToConfigFile = './.github/config.yml') {
   const ymlData = YAML.parse(configFile);
   const reviewers = ymlData.reviewers;
   return reviewers;
-  // let prCounter = ymlData.external_pr_count;
-
-  // context.log({ 'ymlData': ymlData })
-  // context.log({ 'reviewers': ymlData.reviewers })
-  // context.log({ 'prCounter': prCounter })
-
-  // const remainder = prCounter % reviewers.length;
-  // const reviewer = reviewers[remainder];
-  // return reviewer;
 }
 
 /**
- * 
+ * Selects reviewer in a round-robin style
  * @param {Array} reviewers 
- * @param {*} context 
+ * @param {Array} externalPRs 
  */
 function selectReviewer(reviewers, externalPRs) {
   // context.log({ 'externalPRs': externalPRs });
@@ -100,22 +88,6 @@ function getLastEvent(commitTimestamp, commentTimestamp, reviewTimestamp) {
 }
 
 /**
- * Update the external PR count in the config file. Should be called after `getReviewer` function
- * @param {String} pathToConfigFile 
- */
-function updateConfig(pathToConfigFile = './.github/config.yml') {
-  const configFile = fs.readFileSync(pathToConfigFile, 'utf-8');
-  const ymlData = YAML.parse(configFile);
-  const reviewers = ymlData.reviewers;
-  let prCounter = ymlData.external_pr_count;
-  rewriteConfig.reviewers = reviewers;
-  rewriteConfig.external_pr_count = ++prCounter;
-  const newData = YAML.stringify(rewriteConfig);
-  // context.log({ 'newData': newData });
-  fs.writeFileSync(pathToConfigFile, YAML.stringify(rewriteConfig));
-}
-
-/**
  * Get configuration information
  * @param {String} pathToConfigFile 
  */
@@ -131,11 +103,6 @@ function getConfigData(pathToConfigFile = './.github/config.yml') {
   const botName = ymlData.bot_name;
   return { owner, repo, reviewers, days, hours, minutes, botName };
 }
-
-/**
- * Get configuration information
- * @param {String} pathToConfigFile 
- */
 
 /**
  * 
@@ -156,79 +123,11 @@ function timeSpanInMilliseconds(days = 0, hours = 0, minutes = 0) {
  * @param {import('probot').Application} app
  */
 module.exports = app => {
-  // Your code here
-  app.log('Is this working?')
-  app.log('Probably not')
   app.log('Yay, the app was loaded!')
 
 
-  // createScheduler(app);
-  // app.on('schedule.repository', async context => {
-  //   // this event is triggered on an interval, which is 1 hr by default
-  //   const { owner, repo, days, hours, minutes } = getConfigData();
-  //   // const timestamp = this.since(days).toISOString().replace(/\.\d{3}\w$/, '')
-  //   let timestamp = new Date(Date.now() - timeSpanInMilliseconds(days, hours, minutes));
-  //   timestamp = timestamp.toISOString().replace(/\.\d{3}\w$/, '');
-
-  //   // query = `repo:${owner}/${repo} is:open updated:<${timestamp} ${query}`
-  //   const query = `repo:${owner}/${repo} is:open updated:<${timestamp} is:pr`;
-
-  //   const params = { q: query, sort: 'updated', order: 'desc' }
-
-  //   // this.logger.info(params, 'searching %s/%s for stale issues', owner, repo)
-  //   context.log(params, 'searching %s/%s for stale issues', owner, repo)
-  //   // return this.github.search.issues(params)
-  //   const staleIssuesPayload = await context.github.search.issues(params);
-  //   context.log({ 'stalePRsPayload': staleIssuesPayload })
-  //   if (staleIssuesPayload.data.total_count > 0) {
-  //     let staleIssues = staleIssuesPayload.data.items;
-
-  //     for (const issue of staleIssues) {
-  //       // let number = issue.number;
-  //       // context.log('number: ', number)
-  //       context.log({ 'issue': issue })
-  //       const contextIssue = context.issue({ number: issue.number })
-  //       const prPayload = await context.github.pullRequests.get({ ...contextIssue });
-  //       const sha = prPayload.data.head.sha;
-
-  //       // Get commit timestamp
-  //       const commitPayload = await context.github.repos.getCommit({ ...contextIssue, sha });
-  //       context.log({ 'prPayload': prPayload });
-  //       context.log({ 'commitPayload': commitPayload })
-  //       const commitAuthorLogin = commitPayload.data.author.login;
-  //       const lastCommitDate = commitPayload.data.commit.author.date;
-        
-  //       // Get review submission time. If no review submitted - set review submission time to 1970
-  //       const reviewsSubmissionsPayload = await context.github.pullRequests.listReviews({ ...contextIssue });
-  //       context.log({ 'reviewsSubmissionsPayload': reviewsSubmissionsPayload })
-  //       const reviewsSubmissions = reviewsSubmissionsPayload.data;
-  //       let reviewSubmissionDate = new Date(0);
-  //       context.log('reviewSubmissionDate: ', reviewSubmissionDate);
-  //       if (Array.isArray(reviewsSubmissions) && reviewsSubmissions.length >= 1) {
-  //         reviewSubmissionDate = reviewsSubmissions[reviewsSubmissions.length - 1].submitted_at;
-  //         context.log('updated reviewSubmissionDate: ', reviewSubmissionDate)
-  //       }
-
-  //       // get last comment timestamp
-  //       const commentsPayload = await context.github.issues.listComments({ ...contextIssue });
-  //       context.log({ 'commentsPayload': commentsPayload });
-  //       let comments = commentsPayload.data;
-  //       comments = comments.filter(comment => !(comment.user.login.endsWith('[bot]')));
-  //       context.log({ 'comments': comments });
-  //       let lastCommentTimestamp = new Date(0);
-  //       if (Array.isArray(comments) && comments.length >= 1) {
-  //         lastCommentTimestamp = comments[comments.length - 1].submitted_at;
-  //         context.log('updated lastCommentTimestamp: ', lastCommentTimestamp)
-  //       }
-
-  //       // const lastCommentDate = BLAH;
-  //       // const lastCommentUser = BLAH;
-  //       break;
-  //     }
-  //   }
-  // })
-
-  app.on('*', async context => {
+  createScheduler(app, { interval: 10 * 60 * 1000 }); // every ten minutes
+  app.on('schedule.repository', async context => {
     // const config = await context.config('config.yml');
     const { owner, repo, days, hours, minutes, botName } = getConfigData();
     let timestamp = new Date(Date.now() - timeSpanInMilliseconds(days, hours, minutes));
@@ -297,7 +196,6 @@ module.exports = app => {
         }
 
 
-
         // The lastEvent decides who needs a reminder
         let msg;
         let reviewersWithPrefix = requestedReviewers.map(reviewer => '@' + reviewer + ' ');
@@ -357,6 +255,8 @@ module.exports = app => {
     }
   })
 
+  // app.on('*', async context => {
+  // })
 
   app.on('issues.opened', async context => {
     // context.log({ event: context.event, action: context.payload })
@@ -368,98 +268,37 @@ module.exports = app => {
   })
 
   app.on('pull_request.opened', async context => {
-    // const config = await context.config('config.yml')
-    // context.log({ 'config': config.reviewers })
-
-    // const configFile = fs.readFileSync('../.github/config.yml', 'utf-8');
-    // const ymlData = YAML.parse(configFile);
-    // const reviewers = ymlData.reviewers;
-    // let prCounter = ymlData.external_pr_count;
-
-    // context.log({ 'ymlData': ymlData })
-    // context.log({ 'reviewers': ymlData.reviewers })
-    // context.log({ 'prCounter': prCounter })
-
-    // const remainder = prCounter % reviewers.length;
-    // const reviewer = reviewers[remainder];
-    // context.log({ 'reviewer': reviewer }) ;
-    // rewriteConfig.reviewers = reviewers;
-    // rewriteConfig.external_pr_count = ++prCounter;
-    // const newData = YAML.stringify(rewriteConfig);
-    // context.log({ 'newData': newData });
-    // fs.writeFileSync('../.github/config.yml', YAML.stringify(rewriteConfig));
-
-    // context.log({ event: context.event, action: context.payload })
-    // const pullComment = context.issue({ body: ('How Wonderful! You\'ve just now created a Pull Request in this repository - !We Love That!\n' + String.raw`¯\_(ツ)_/¯`)})
-    // context.log({ 'pullComment': pullComment })
-    // const makeComment = await context.github.issues.createComment(pullComment)
-    // context.log({ 'makeComment': makeComment })
-    // // return context.github.issues.createComment(pullComment)
-
     const pr = context.payload.pull_request; 
     const isFork = pr.head.repo.fork;
     context.log({ 'isFork': isFork })
     if (isFork) {
-      const issue = context.issue({ number: pr.number })
+      // Add welcome comment to external PR
+      const issue = context.issue({ body: ('Thank you for your contribution. You\'re generosity and caring are unrivaled! Rest assured that very shortly one of our content wizards will look over your proposed changes.')});
+      const makeComment = await context.github.issues.createComment(pullComment);
+
+      // Add Label
+      // const issue = context.issue({ pull_number: pr.number })
       const addExternalLabel = await context.github.issues.addLabels({ ...issue, labels: [externalPRLabel] })
       context.log({ 'addExternalLabel': addExternalLabel })
 
+      // Get Potential Reviewers
       const potentialReviewers = getReviewers();
-      const externalPRsPayload = await context.github.pullRequests.list({ ...issue, state: 'open' });
+      const externalPRsPayload = await context.github.pullRequests.list({ ...issue });
       const externalPRs = externalPRsPayload.data;
       const reviewer = selectReviewer(potentialReviewers, externalPRs);
 
+      // Assign Reviewer
       const reviewRequest = await context.github.pullRequests.createReviewRequest({ ...issue, reviewers: [reviewer] })
       context.log({ 'reviewRequest': reviewRequest })
-      return reviewRequest
+      // return reviewRequest
 
-      // const assignIssue = await context.github.issues.addAssignees({ ...issue, assignees: ['avidan-H'] })
-      // context.log({ 'assignIssue': assignIssue })
-      // return assignIssue
+      // Check Tree for committed files and make sure that all necessary files are present
     }
 
     // Check Tree for committed files and make sure that all necessary files are present
     // implement github Checks?
     // context.github.checks.create
   })
-
-  // // using this one to test out stuff
-  // app.on('pull_request', async context => {
-  //   const { github } = context
-  //   if (context.payload.action != 'opened') {
-  //     const pr = context.payload.pull_request; 
-  //     const org = pr.base.repo.owner.login;
-  //     const user = pr.user.login;
-  //     const repo = pr.base.repo.name;
-
-  //     const files = await context.github.pullRequests.listFiles({ number: pr.number, owner: org, repo: repo })
-  //     context.log({ 'files': files })
-      
-  //     const isFork = pr.head.repo.fork;
-  //     context.log({ 'isFork': isFork })
-  //     if (isFork) {
-  //       const issue = context.issue({ number: pr.number })
-  //       return github.issues.addLabels({ ...issue, labels: [externalPRLabel] })
-  //     }
-  //   }
-  // })
-
-  // // assign external PR to individual for review
-  // app.on('pull_request.labeled', async context => {
-  //   const { github } = context
-  //   const pr = context.payload.pull_request;
-  //   if ( pr.labels.includes(externalPRLabel) ) {
-  //     // Placeholder action
-  //     const issue = context.issue({ number: pr.number })
-  //     return github.issues.addAssignees({ ...issue, assignees: ['avidan-H'] })
-
-  //     // Get Team Users (content team)
-
-  //     // Tally assigned PRs per user
-
-  //     // Assign PR to user with least assigned PRs
-  //   }
-  // })
 
   // create new branch from content master, change base branch of external PR
   app.on('pull_request_review.submitted', async context => {
