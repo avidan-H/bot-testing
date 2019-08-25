@@ -63,7 +63,7 @@ function selectReviewer(reviewers, externalPRs) {
  */
 function toDate(timestamp) {
   if (typeof timestamp !== 'undefined') {
-    return Date(timestamp);
+    return Date.parse(timestamp);
   }
   return Date(0);
 }
@@ -79,6 +79,10 @@ function getLastEvent(commitTimestamp, commentTimestamp, reviewTimestamp) {
   let commitDate = toDate(commitTimestamp);
   let commentDate = toDate(commentTimestamp);
   let reviewDate = toDate(reviewTimestamp);
+
+  console.log('commitDate: ', commitDate);
+  console.log('commentDate: ', commentDate);
+  console.log('reviewDate: ', reviewDate);
 
   let last = 'commit';
   if (commentDate >= commitDate) {
@@ -124,7 +128,8 @@ function getConfigData(pathToConfigFile = './.github/config.yml') {
   const days = ymlData.days;
   const hours = ymlData.hours;
   const minutes = ymlData.minutes;
-  return { owner, repo, reviewers, days, hours, minutes };
+  const botName = ymlData.bot_name;
+  return { owner, repo, reviewers, days, hours, minutes, botName };
 }
 
 /**
@@ -157,116 +162,114 @@ module.exports = app => {
   app.log('Yay, the app was loaded!')
 
 
-  createScheduler(app);
-  app.on('schedule.repository', async context => {
-    // this event is triggered on an interval, which is 1 hr by default
-    const { owner, repo, days, hours, minutes } = getConfigData();
-    // const timestamp = this.since(days).toISOString().replace(/\.\d{3}\w$/, '')
-    let timestamp = new Date(Date.now() - timeSpanInMilliseconds(days, hours, minutes));
-    timestamp = timestamp.toISOString().replace(/\.\d{3}\w$/, '');
+  // createScheduler(app);
+  // app.on('schedule.repository', async context => {
+  //   // this event is triggered on an interval, which is 1 hr by default
+  //   const { owner, repo, days, hours, minutes } = getConfigData();
+  //   // const timestamp = this.since(days).toISOString().replace(/\.\d{3}\w$/, '')
+  //   let timestamp = new Date(Date.now() - timeSpanInMilliseconds(days, hours, minutes));
+  //   timestamp = timestamp.toISOString().replace(/\.\d{3}\w$/, '');
 
-    // query = `repo:${owner}/${repo} is:open updated:<${timestamp} ${query}`
-    const query = `repo:${owner}/${repo} is:open updated:<${timestamp} is:pr`;
+  //   // query = `repo:${owner}/${repo} is:open updated:<${timestamp} ${query}`
+  //   const query = `repo:${owner}/${repo} is:open updated:<${timestamp} is:pr`;
 
-    const params = { q: query, sort: 'updated', order: 'desc' }
+  //   const params = { q: query, sort: 'updated', order: 'desc' }
 
-    // this.logger.info(params, 'searching %s/%s for stale issues', owner, repo)
-    context.log(params, 'searching %s/%s for stale issues', owner, repo)
-    // return this.github.search.issues(params)
-    const staleIssuesPayload = await context.github.search.issues(params);
-    context.log({ 'stalePRsPayload': staleIssuesPayload })
-    if (staleIssuesPayload.data.total_count > 0) {
-      let staleIssues = staleIssuesPayload.data.items;
+  //   // this.logger.info(params, 'searching %s/%s for stale issues', owner, repo)
+  //   context.log(params, 'searching %s/%s for stale issues', owner, repo)
+  //   // return this.github.search.issues(params)
+  //   const staleIssuesPayload = await context.github.search.issues(params);
+  //   context.log({ 'stalePRsPayload': staleIssuesPayload })
+  //   if (staleIssuesPayload.data.total_count > 0) {
+  //     let staleIssues = staleIssuesPayload.data.items;
 
-      for (const issue of staleIssues) {
-        // let number = issue.number;
-        // context.log('number: ', number)
-        context.log({ 'issue': issue })
-        const contextIssue = context.issue({ number: issue.number })
-        const prPayload = await context.github.pullRequests.get({ ...contextIssue });
-        const sha = prPayload.data.head.sha;
+  //     for (const issue of staleIssues) {
+  //       // let number = issue.number;
+  //       // context.log('number: ', number)
+  //       context.log({ 'issue': issue })
+  //       const contextIssue = context.issue({ number: issue.number })
+  //       const prPayload = await context.github.pullRequests.get({ ...contextIssue });
+  //       const sha = prPayload.data.head.sha;
 
-        // Get commit timestamp
-        const commitPayload = await context.github.repos.getCommit({ ...contextIssue, sha });
-        context.log({ 'prPayload': prPayload });
-        context.log({ 'commitPayload': commitPayload })
-        const commitAuthorLogin = commitPayload.data.author.login;
-        const lastCommitDate = commitPayload.data.commit.author.date;
+  //       // Get commit timestamp
+  //       const commitPayload = await context.github.repos.getCommit({ ...contextIssue, sha });
+  //       context.log({ 'prPayload': prPayload });
+  //       context.log({ 'commitPayload': commitPayload })
+  //       const commitAuthorLogin = commitPayload.data.author.login;
+  //       const lastCommitDate = commitPayload.data.commit.author.date;
         
-        // Get review submission time. If no review submitted - set review submission time to 1970
-        const reviewsSubmissionsPayload = await context.github.pullRequests.listReviews({ ...contextIssue });
-        context.log({ 'reviewsSubmissionsPayload': reviewsSubmissionsPayload })
-        const reviewsSubmissions = reviewsSubmissionsPayload.data;
-        let reviewSubmissionDate = new Date(0);
-        context.log('reviewSubmissionDate: ', reviewSubmissionDate);
-        if (Array.isArray(reviewsSubmissions) && reviewsSubmissions.length >= 1) {
-          reviewSubmissionDate = reviewsSubmissions[reviewsSubmissions.length - 1].submitted_at;
-          context.log('updated reviewSubmissionDate: ', reviewSubmissionDate)
-        }
+  //       // Get review submission time. If no review submitted - set review submission time to 1970
+  //       const reviewsSubmissionsPayload = await context.github.pullRequests.listReviews({ ...contextIssue });
+  //       context.log({ 'reviewsSubmissionsPayload': reviewsSubmissionsPayload })
+  //       const reviewsSubmissions = reviewsSubmissionsPayload.data;
+  //       let reviewSubmissionDate = new Date(0);
+  //       context.log('reviewSubmissionDate: ', reviewSubmissionDate);
+  //       if (Array.isArray(reviewsSubmissions) && reviewsSubmissions.length >= 1) {
+  //         reviewSubmissionDate = reviewsSubmissions[reviewsSubmissions.length - 1].submitted_at;
+  //         context.log('updated reviewSubmissionDate: ', reviewSubmissionDate)
+  //       }
 
-        // get last comment timestamp
-        const commentsPayload = await context.github.issues.listComments({ ...contextIssue });
-        context.log({ 'commentsPayload': commentsPayload });
-        let comments = commentsPayload.data;
-        comments = comments.filter(comment => !(comment.user.login.endsWith('[bot]')));
-        context.log({ 'comments': comments });
-        let lastCommentTimestamp = new Date(0);
-        if (Array.isArray(comments) && comments.length >= 1) {
-          lastCommentTimestamp = comments[comments.length - 1].submitted_at;
-          context.log('updated lastCommentTimestamp: ', lastCommentTimestamp)
-        }
+  //       // get last comment timestamp
+  //       const commentsPayload = await context.github.issues.listComments({ ...contextIssue });
+  //       context.log({ 'commentsPayload': commentsPayload });
+  //       let comments = commentsPayload.data;
+  //       comments = comments.filter(comment => !(comment.user.login.endsWith('[bot]')));
+  //       context.log({ 'comments': comments });
+  //       let lastCommentTimestamp = new Date(0);
+  //       if (Array.isArray(comments) && comments.length >= 1) {
+  //         lastCommentTimestamp = comments[comments.length - 1].submitted_at;
+  //         context.log('updated lastCommentTimestamp: ', lastCommentTimestamp)
+  //       }
 
-        // const lastCommentDate = BLAH;
-        // const lastCommentUser = BLAH;
-        break;
-      }
-    }
-  })
+  //       // const lastCommentDate = BLAH;
+  //       // const lastCommentUser = BLAH;
+  //       break;
+  //     }
+  //   }
+  // })
 
   app.on('*', async context => {
     // const config = await context.config('config.yml');
-    const { owner, repo, days, hours, minutes } = getConfigData();
-    // const timestamp = this.since(days).toISOString().replace(/\.\d{3}\w$/, '')
+    const { owner, repo, days, hours, minutes, botName } = getConfigData();
     let timestamp = new Date(Date.now() - timeSpanInMilliseconds(days, hours, minutes));
     timestamp = timestamp.toISOString().replace(/\.\d{3}\w$/, '');
 
-    // query = `repo:${owner}/${repo} is:open updated:<${timestamp} ${query}`
     const query = `repo:${owner}/${repo} is:open updated:<${timestamp} is:pr`;
 
     const params = { q: query, sort: 'updated', order: 'desc' }
 
-    // this.logger.info(params, 'searching %s/%s for stale issues', owner, repo)
     context.log(params, 'searching %s/%s for stale issues', owner, repo)
-    // return this.github.search.issues(params)
-    const staleIssuesPayload = await context.github.search.issues(params);
+    const staleIssuesPayload = await context.github.search.issuesAndPullRequests(params);
     context.log({ 'stalePRsPayload': staleIssuesPayload })
     if (staleIssuesPayload.data.total_count > 0) {
       let staleIssues = staleIssuesPayload.data.items;
 
       for (const issue of staleIssues) {
-        // let number = issue.number;
-        // context.log('number: ', number)
-        context.log({ 'issue': issue })
-        const contextIssue = context.issue({ pull_number: issue.number, number: issue.number })
-        const prPayload = await context.github.pullRequests.get({ ...contextIssue });
+        // context.log({ 'issue': issue })
+        context.log.info('looking at PR with issue number #', issue.number);
+        const contextPR = context.issue({ pull_number: issue.number })
+        delete contextPR.number; // deprecated, uses pull_number instead
+        const contextIssue = context.issue({ issue_number: issue.number })
+        delete contextIssue.number; // deprecated, uses issue_number instead
+        const prPayload = await context.github.pullRequests.get({ ...contextPR });
         const sha = prPayload.data.head.sha;
 
         // get a list of requested reviewers for the PR
         let requestedReviewers = prPayload.data.requested_reviewers.map(requestedReviewer => requestedReviewer.login);
 
         // Get commit timestamp
-        const commitPayload = await context.github.repos.getCommit({ ...contextIssue, commit_sha: sha });
-        context.log({ 'prPayload': prPayload });
-        context.log({ 'commitPayload': commitPayload })
+        const commitPayload = await context.github.repos.getCommit({ ...contextIssue, ref: sha });
+        // context.log({ 'prPayload': prPayload });
+        // context.log({ 'commitPayload': commitPayload })
         const commitAuthorLogin = commitPayload.data.author.login;
         const lastCommitDate = commitPayload.data.commit.author.date;
         
         // Get review submission time. If no review submitted - set review submission time to 1970
-        const reviewsSubmissionsPayload = await context.github.pullRequests.listReviews({ ...contextIssue });
-        context.log({ 'reviewsSubmissionsPayload': reviewsSubmissionsPayload })
+        const reviewsSubmissionsPayload = await context.github.pullRequests.listReviews({ ...contextPR });
+        // context.log({ 'reviewsSubmissionsPayload': reviewsSubmissionsPayload })
         const reviewsSubmissions = reviewsSubmissionsPayload.data;
         let reviewSubmissionDate = new Date(0);
-        context.log('reviewSubmissionDate: ', reviewSubmissionDate);
+        // context.log('reviewSubmissionDate: ', reviewSubmissionDate);
         let reviewStatus;
         if (Array.isArray(reviewsSubmissions) && reviewsSubmissions.length >= 1) {
           let lastReviewSubmission = reviewsSubmissions[reviewsSubmissions.length - 1];
@@ -277,35 +280,64 @@ module.exports = app => {
 
         // get last comment timestamp
         const commentsPayload = await context.github.issues.listComments({ ...contextIssue });
-        context.log({ 'commentsPayload': commentsPayload });
+        // context.log({ 'commentsPayload': commentsPayload });
         let comments = commentsPayload.data;
-        comments = comments.filter(comment => !(comment.user.login.endsWith('[bot]')));
-        context.log({ 'comments': comments });
+        // get all comments excluding our bot's welcome message that starts with "Thank" presumably
+        comments = comments.filter( comment => !(comment.body.startsWith('Thank') && comment.user.login.endsWith('[bot]')));
+        // context.log({ 'comments': comments });
         let lastCommentTimestamp = new Date(0);
+        let lastComment;
         let commenter;
         if (Array.isArray(comments) && comments.length >= 1) {
-          let lastComment = comments[comments.length - 1];
+          lastComment = comments[comments.length - 1];
           lastCommentTimestamp = lastComment.updated_at;
           context.log('updated lastCommentTimestamp: ', lastCommentTimestamp)
           commenter = lastComment.user.login;
+          context.log.info('commenter: ', commenter);
         }
 
+
+
         // The lastEvent decides who needs a reminder
-        let lastEvent = getLastEvent(lastCommitDate, lastCommentTimestamp, reviewSubmissionDate);
-        let reviewersWithPrefix = requestedReviewers.map(reviewer => '@' + reviewer + ' ');
         let msg;
+        let reviewersWithPrefix = requestedReviewers.map(reviewer => '@' + reviewer + ' ');
+        context.log.info('lastCommitDate: ', lastCommitDate, '\nlastCommentTimestamp: ', lastCommentTimestamp, '\nreviewSubmissionDate: ', reviewSubmissionDate);
+        let lastEvent = getLastEvent(lastCommitDate, lastCommentTimestamp, reviewSubmissionDate);
+        context.log.info('lastEvent: ', lastEvent);
         if (lastEvent === 'commit') {
           // then the assumption is that the requested reviewer(s) need a reminder
           msg = reviewersWithPrefix.join('') + 'A lengthy period of time has transpired - please take a look at this PR.';
         } else if (lastEvent === 'review') {
           // then the assumption is that the person who opened the PR needs a reminder
           msg = '@' + commitAuthorLogin;
+          context.log.info('reviewStatus: ', reviewStatus);
           if (reviewStatus !== 'APPROVED') {
-            msg += ' A lengthy period of time has transpired since the PR was reviewed. Please address the reviewer\'s comments and push your committed changes.';
+            if (reviewStatus === 'PENDING') {
+              msg = reviewersWithPrefix.join('') + 'It would be awfully nice if you would review @' + commitAuthorLogin + '\'s magnanimous contribution.';
+            } else {
+              msg += ' A lengthy period of time has transpired since the PR was reviewed. Please address the reviewer\'s comments and push your committed changes.';
+            }
           } else {
-            msg += ' The PR was approved but doesn\'t seem to have been merged. Please verify that there aren\'t any requested changes still pending preventing your changes being merged.';
+            msg += ' The PR was approved but doesn\'t seem to have been merged. Please verify that there aren\'t any outstanding requested changes.';
           }
         } else { // lastEvent === 'comment'
+          // Actions if the last comment was made by the bot itself
+          const botLogin = botName + '[bot]';
+          context.log.info('botLogin: ', botLogin, '\ncommenter: ', commenter);
+          if (commenter === botLogin) {
+            // PR already has nudging comment from our bot
+            msg = reviewersWithPrefix.join('') + 'These reminders don\'t seem to be working and the issue is getting pretty stale - consider whether this PR is still relevant or should be closed.';
+            if (lastComment.body === msg) {
+              // PR already has comment from our bot to consider closing the issue
+              context.log.info('Skip: PR already has comment from our bot to consider closing the issue');
+              continue;
+            }
+            // otherwise send message to consider closing the issue
+            let nudgeComment = context.issue({ issue_number: issue.number, body: msg });
+            delete nudgeComment.number;
+            let nudgePayload = await context.github.issues.createComment(nudgeComment);
+            continue;
+          }
           // determine who the last commenter was - assume that whichever party was not the commenter needs a reminder
           if (commenter !== commitAuthorLogin) {
             let staleMessage = 'This PR is starting to get a little stale and possibly even a little moldy and smelly.';
@@ -316,9 +348,11 @@ module.exports = app => {
             msg = reviewersWithPrefix.join('') + staleMessage + ' What\'s new since @' + commenter + '\'s last comment?';
           } 
         }
-        let nudgeComment = context.issue({ body: msg });
+        context.log.info('about to send "', msg, '" to issue #', issue.number);
+        let nudgeComment = context.issue({ issue_number: issue.number, body: msg });
+        delete nudgeComment.number;
         let nudgePayload = await context.github.issues.createComment(nudgeComment);
-        break;
+        // break;
       }
     }
   })
