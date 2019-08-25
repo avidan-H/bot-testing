@@ -273,26 +273,42 @@ module.exports = app => {
     context.log({ 'isFork': isFork })
     if (isFork) {
       // Add welcome comment to external PR
-      const issue = context.issue({ body: ('Thank you for your contribution. You\'re generosity and caring are unrivaled! Rest assured that very shortly one of our content wizards will look over your proposed changes.')});
-      const makeComment = await context.github.issues.createComment(pullComment);
+      const issue = context.issue({ issue_number: pr.number, pull_number: pr.number, body: ('Thank you for your contribution. You\'re generosity and caring are unrivaled! Rest assured that very shortly one of our content wizards will look over your proposed changes.')});
+      delete issue.number;
+      const makeComment = await context.github.issues.createComment(issue);
 
       // Add Label
       // const issue = context.issue({ pull_number: pr.number })
       const addExternalLabel = await context.github.issues.addLabels({ ...issue, labels: [externalPRLabel] })
       context.log({ 'addExternalLabel': addExternalLabel })
 
+      // Check Tree for committed files and make sure that all necessary files are present
+      const commit_sha = pr.head.sha;
+      const commit = await context.github.git.getCommit({ ...issue, commit_sha });
+      const tree_sha = commit.data.tree.sha;
+      const tree = await context.github.git.getTree({ ...issue, tree_sha, recursive: 1 });
+      context.log({ 'tree': tree });
+
       // Get Potential Reviewers
       const potentialReviewers = getReviewers();
       const externalPRsPayload = await context.github.pullRequests.list({ ...issue });
       const externalPRs = externalPRsPayload.data;
       const reviewer = selectReviewer(potentialReviewers, externalPRs);
+      context.log('reviewer: ', reviewer);
 
       // Assign Reviewer
       const reviewRequest = await context.github.pullRequests.createReviewRequest({ ...issue, reviewers: [reviewer] })
       context.log({ 'reviewRequest': reviewRequest })
       // return reviewRequest
-
+    } else { // so i can check tree data without having someone submit external pr :-P - Delete this Else block soon.
       // Check Tree for committed files and make sure that all necessary files are present
+      const issue = context.issue({ issue_number: pr.number, pull_number: pr.number, body: ('Thank you for your contribution. You\'re generosity and caring are unrivaled! Rest assured that very shortly one of our content wizards will look over your proposed changes.')});
+      delete issue.number;
+      const commit_sha = pr.head.sha;
+      const commit = await context.github.git.getCommit({ ...issue, commit_sha });
+      const tree_sha = commit.data.tree.sha;
+      const tree = await context.github.git.getTree({ ...issue, tree_sha, recursive: 1 });
+      context.log({ 'tree': tree });
     }
 
     // Check Tree for committed files and make sure that all necessary files are present
