@@ -247,22 +247,33 @@ module.exports = app => {
           // Actions if the last comment was made by the bot itself
           const botLogin = botName + '[bot]';
           context.log.info('botLogin: ', botLogin, '\ncommenter: ', commenter);
+          
           if (commenter === botLogin) {
-            // PR already has nudging comment from our bot
-            msg = reviewersWithPrefix.join('') + 'These reminders don\'t seem to be working and the issue is getting pretty stale - consider whether this \
+            let nudgeMessage = '"And some things that should not have been forgotten were lost. History became legend. Legend became myth. And for two and a half \
+            thousand years", ' + reviewersWithPrefix.join('') + 'had not looked at this beautiful PR - as they were meant to do.';
+            let closeMessage = reviewersWithPrefix.join('') + 'These reminders don\'t seem to be working and the issue is getting pretty stale - consider whether this \
             PR is still relevant or should be closed.';
-            if (lastComment.body === msg) {
+
+            let comment = context.issue({
+              issue_number: issue.number
+            })
+            delete comment.number;
+
+            // Nudge Reviewer if necessary
+            if (reviewStatus === 'PENDING' && (lastComment.body !== nudgeMessage && lastComment.body !== closeMessage)) {
+              comment.body = nudgeMessage;
+              let nudgePayload = await context.github.issues.createComment(comment);
+              continue;
+            }
+            // PR already has 'consider closing' comment from our bot
+            if (lastComment.body === closeMessage) {
               // PR already has comment from our bot to consider closing the issue
               context.log.info('Skip: PR already has comment from our bot to consider closing the issue');
               continue;
             }
             // Otherwise create comment to consider closing the issue
-            let nudgeComment = context.issue({
-              issue_number: issue.number,
-              body: msg
-            });
-            delete nudgeComment.number;
-            let nudgePayload = await context.github.issues.createComment(nudgeComment);
+            comment.body = closeMessage;
+            let closePayload = await context.github.issues.createComment(comment);
             continue;
           }
           // Determine who the last commenter was - assume that whichever party was not the commenter needs a reminder
