@@ -354,68 +354,6 @@ module.exports = app => {
       const reviewRequest = await context.github.pullRequests.createReviewRequest({ ...issue, reviewers: [reviewer] })
       context.log({ 'reviewRequest': reviewRequest })
       // return reviewRequest
-    } else { // so i can check tree data without having someone submit external pr :-P - Delete this Else block soon.
-      // Check Tree for committed files and make sure that all necessary files are present
-      const issue = context.issue({ issue_number: pr.number, pull_number: pr.number, body: ('Thank you for your contribution. You\'re generosity and caring are unrivaled! Rest assured that very shortly one of our content wizards will look over your proposed changes.')});
-      delete issue.number;
-      const commit_sha = pr.head.sha;
-      // const commit = await context.github.git.getCommit({ ...issue, commit_sha });
-      // const tree_sha = commit.data.tree.sha;
-      // const tree = await context.github.git.getTree({ ...issue, tree_sha, recursive: 1 });
-      // context.log({ 'tree': tree });
-      const prFilesPayload = await context.github.pulls.listFiles({ ...issue });
-      const prFiles = prFilesPayload.data;
-      const files = prFiles.map(fileObject => fileObject.filename);
-      const fileNames = files.join('\n');
-      console.log('fileNames: ', fileNames);
-
-      var pyCodeReg = /content\/Integrations\/(.*)\/\1\.py/;
-      const moddedCode = pyCodeReg.exec(fileNames);
-      var ymlReg = /content\/Integrations\/(.*)\/\1\.yml/;
-      const moddedYml = ymlReg.exec(ymlReg);
-      let requires = new Array();
-      let dirName;
-      let changed;
-      let pathPrefix = 'content\/Integrations\/';
-      if (moddedCode) {
-        changed = 'python';
-        dirName = moddedCode[1];
-        console.log('dirName: ', dirName);
-        var pyCodeTest = new RegExp(pathPrefix + dirName + '\/' + dirName + '_test\.py');
-        if (!(pyCodeTest.test(fileNames))) {
-          requires.push('unit test');
-        }
-        var isChangelog = new RegExp(pathPrefix + dirName + '\/' + 'CHANGELOG.md');
-        if (!(isChangelog.test(fileNames))) {
-          requires.push('changelog')
-        }
-      } else if (moddedYml) {
-        changed = 'yml';
-        dirName = moddedYml[1];
-        var isChangelog = new RegExp(pathPrefix + dirName + '\/' + 'CHANGELOG.md');
-        if (!(isChangelog.test(fileNames))) {
-          requires.push('changelog')
-        }
-      }
-      if (typeof changed !== 'undefined') { // create a message and send
-        console.log('changed: ', changed);
-        console.log('requires: ', requires);
-        let theIssue = context.issue({ issue_number: pr.number, pull_number: pr.number });
-        let unittestMessage = ' It is very likely that the reviewer will want you to add a unittest for your code changes in the `' + dirname + '/' + dirName + '_test.py` file - please refer to the documentation https://github.com/demisto/content/tree/master/docs/tests/unit-testing for more details.'
-        let changelogMessage = ' Because of your changes you will also need to update the `' + dirname + '/' + 'CHANGELOG.md` file - please refer to the documentation https://github.com/demisto/content/tree/master/docs/release_notes for more details.'
-        let warning = 'It appears you made changes to the ' + changed + ' file in the ' + dirName + ' integration directory.';
-        if (requires.includes('unit test')) {
-          warning += unittestMessage;
-        }
-        if (requires.includes('changelog')) {
-          warning += changelogMessage;
-        }
-        theIssue.body = warning;
-        delete theIssue.number;
-        const warningComment = await context.github.issues.createComment(theIssue);
-        context.log({ 'warningComment': warningComment });
-      }
-      // context.log({ 'prFilesPayload': prFilesPayload});
     }
   })
 
