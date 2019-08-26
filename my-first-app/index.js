@@ -181,8 +181,8 @@ module.exports = app => {
         const commentsPayload = await context.github.issues.listComments({ ...contextIssue });
         // context.log({ 'commentsPayload': commentsPayload });
         let comments = commentsPayload.data;
-        // get all comments excluding our bot's welcome message that starts with "Thank" presumably
-        comments = comments.filter( comment => !(comment.body.startsWith('Thank') && comment.user.login.endsWith('[bot]')));
+        // get all comments excluding our bot's welcome message that starts with "Thank" and our bot's message to include relevant files that starts with "Hey"
+        comments = comments.filter( comment => !((comment.body.startsWith('Thank') || comment.body.startsWith('Hey')) && comment.user.login.endsWith('[bot]')));
         // context.log({ 'comments': comments });
         let lastCommentTimestamp = new Date(0);
         let lastComment;
@@ -272,8 +272,18 @@ module.exports = app => {
     const isFork = pr.head.repo.fork;
     context.log({ 'isFork': isFork })
     if (isFork) {
+      let issue = context.issue({ issue_number: pr.number, pull_number: pr.number });
+
+      // Get Potential Reviewers
+      const potentialReviewers = getReviewers();
+      const externalPRsPayload = await context.github.pullRequests.list({ ...issue });
+      const externalPRs = externalPRsPayload.data;
+      const reviewer = selectReviewer(potentialReviewers, externalPRs);
+      context.log('reviewer: ', reviewer);
+
       // Add welcome comment to external PR
-      const issue = context.issue({ issue_number: pr.number, pull_number: pr.number, body: ('Thank you for your contribution. You\'re generosity and caring are unrivaled! Rest assured that very shortly one of our content wizards will look over your proposed changes.')});
+      const welcomeMessage = 'Thank you for your contribution. Your generosity and caring are unrivaled! Rest assured - our content wizard @' + reviewer + ' will very shortly look over your proposed changes.';
+      issue.body = welcomeMessage;
       delete issue.number;
       const makeComment = await context.github.issues.createComment(issue);
 
@@ -282,19 +292,63 @@ module.exports = app => {
       const addExternalLabel = await context.github.issues.addLabels({ ...issue, labels: [externalPRLabel] })
       context.log({ 'addExternalLabel': addExternalLabel })
 
-      // Check Tree for committed files and make sure that all necessary files are present
-      const commit_sha = pr.head.sha;
-      const commit = await context.github.git.getCommit({ ...issue, commit_sha });
-      const tree_sha = commit.data.tree.sha;
-      const tree = await context.github.git.getTree({ ...issue, tree_sha, recursive: 1 });
-      context.log({ 'tree': tree });
+      // Check pull request and make sure that all necessary files are present
+      const prFilesPayload = await context.github.pulls.listFiles({ ...issue });
+      context.log({ 'prFilesPayload': prFilesPayload});
+      const prFiles = prFilesPayload.data;
+      const files = prFiles.map(fileObject => fileObject.filename);
+      const fileNames = files.join('\n');
+      console.log('fileNames: ', fileNames);
 
-      // Get Potential Reviewers
-      const potentialReviewers = getReviewers();
-      const externalPRsPayload = await context.github.pullRequests.list({ ...issue });
-      const externalPRs = externalPRsPayload.data;
-      const reviewer = selectReviewer(potentialReviewers, externalPRs);
-      context.log('reviewer: ', reviewer);
+      const pullRequester = pr.head.user.login;
+      console.log('pullRequester: ', pullRequester);
+      var pyCodeReg = /content\/Integrations\/(.*)\/\1\.py/;
+      const moddedCode = pyCodeReg.exec(fileNames);
+      console.log('moddedCode: ', moddedCode);
+      var ymlReg = /content\/Integrations\/(.*)\/\1\.yml/;
+      const moddedYml = ymlReg.exec(ymlReg);
+      let requires = new Array();
+      let dirName;
+      let changed;
+      let pathPrefix = 'content\/Integrations\/';
+      if (moddedCode) {
+        changed = 'python';
+        dirName = moddedCode[1];
+        console.log('dirName: ', dirName);
+        var pyCodeTest = new RegExp(pathPrefix + dirName + '\/' + dirName + '_test\.py');
+        if (!(pyCodeTest.test(fileNames))) {
+          requires.push('unit test');
+        }
+        var isChangelog = new RegExp(pathPrefix + dirName + '\/' + 'CHANGELOG.md');
+        if (!(isChangelog.test(fileNames))) {
+          requires.push('changelog')
+        }
+      } else if (moddedYml) {
+        changed = 'yml';
+        dirName = moddedYml[1];
+        var isChangelog = new RegExp(pathPrefix + dirName + '\/' + 'CHANGELOG.md');
+        if (!(isChangelog.test(fileNames))) {
+          requires.push('changelog')
+        }
+      }
+      if (typeof changed !== 'undefined' && requires.length !== 0) { // create the relevant comment
+        console.log('changed: ', changed);
+        console.log('requires: ', requires);
+        let theIssue = context.issue({ issue_number: pr.number, pull_number: pr.number });
+        let unittestMessage = ' It is very likely that the reviewer will want you to add a unittest for your code changes in the `' + dirName + '/' + dirName + '_test.py` file - please refer to the documentation https://github.com/demisto/content/tree/master/docs/tests/unit-testing for more details.'
+        let changelogMessage = ' Because of your changes you will also need to update the `' + dirName + '/' + 'CHANGELOG.md` file - please refer to the documentation https://github.com/demisto/content/tree/master/docs/release_notes for more details.'
+        let warning = 'Hey @' + pullRequester + ', it appears you made changes to the ' + changed + ' file in the ' + dirName + ' integration directory.';
+        if (requires.includes('unit test')) {
+          warning += unittestMessage;
+        }
+        if (requires.includes('changelog')) {
+          warning += changelogMessage;
+        }
+        theIssue.body = warning;
+        delete theIssue.number;
+        const warningComment = await context.github.issues.createComment(theIssue);
+        context.log({ 'warningComment': warningComment });
+      }
 
       // Assign Reviewer
       const reviewRequest = await context.github.pullRequests.createReviewRequest({ ...issue, reviewers: [reviewer] })
@@ -305,15 +359,64 @@ module.exports = app => {
       const issue = context.issue({ issue_number: pr.number, pull_number: pr.number, body: ('Thank you for your contribution. You\'re generosity and caring are unrivaled! Rest assured that very shortly one of our content wizards will look over your proposed changes.')});
       delete issue.number;
       const commit_sha = pr.head.sha;
-      const commit = await context.github.git.getCommit({ ...issue, commit_sha });
-      const tree_sha = commit.data.tree.sha;
-      const tree = await context.github.git.getTree({ ...issue, tree_sha, recursive: 1 });
-      context.log({ 'tree': tree });
-    }
+      // const commit = await context.github.git.getCommit({ ...issue, commit_sha });
+      // const tree_sha = commit.data.tree.sha;
+      // const tree = await context.github.git.getTree({ ...issue, tree_sha, recursive: 1 });
+      // context.log({ 'tree': tree });
+      const prFilesPayload = await context.github.pulls.listFiles({ ...issue });
+      const prFiles = prFilesPayload.data;
+      const files = prFiles.map(fileObject => fileObject.filename);
+      const fileNames = files.join('\n');
+      console.log('fileNames: ', fileNames);
 
-    // Check Tree for committed files and make sure that all necessary files are present
-    // implement github Checks?
-    // context.github.checks.create
+      var pyCodeReg = /content\/Integrations\/(.*)\/\1\.py/;
+      const moddedCode = pyCodeReg.exec(fileNames);
+      var ymlReg = /content\/Integrations\/(.*)\/\1\.yml/;
+      const moddedYml = ymlReg.exec(ymlReg);
+      let requires = new Array();
+      let dirName;
+      let changed;
+      let pathPrefix = 'content\/Integrations\/';
+      if (moddedCode) {
+        changed = 'python';
+        dirName = moddedCode[1];
+        console.log('dirName: ', dirName);
+        var pyCodeTest = new RegExp(pathPrefix + dirName + '\/' + dirName + '_test\.py');
+        if (!(pyCodeTest.test(fileNames))) {
+          requires.push('unit test');
+        }
+        var isChangelog = new RegExp(pathPrefix + dirName + '\/' + 'CHANGELOG.md');
+        if (!(isChangelog.test(fileNames))) {
+          requires.push('changelog')
+        }
+      } else if (moddedYml) {
+        changed = 'yml';
+        dirName = moddedYml[1];
+        var isChangelog = new RegExp(pathPrefix + dirName + '\/' + 'CHANGELOG.md');
+        if (!(isChangelog.test(fileNames))) {
+          requires.push('changelog')
+        }
+      }
+      if (typeof changed !== 'undefined') { // create a message and send
+        console.log('changed: ', changed);
+        console.log('requires: ', requires);
+        let theIssue = context.issue({ issue_number: pr.number, pull_number: pr.number });
+        let unittestMessage = ' It is very likely that the reviewer will want you to add a unittest for your code changes in the `' + dirname + '/' + dirName + '_test.py` file - please refer to the documentation https://github.com/demisto/content/tree/master/docs/tests/unit-testing for more details.'
+        let changelogMessage = ' Because of your changes you will also need to update the `' + dirname + '/' + 'CHANGELOG.md` file - please refer to the documentation https://github.com/demisto/content/tree/master/docs/release_notes for more details.'
+        let warning = 'It appears you made changes to the ' + changed + ' file in the ' + dirName + ' integration directory.';
+        if (requires.includes('unit test')) {
+          warning += unittestMessage;
+        }
+        if (requires.includes('changelog')) {
+          warning += changelogMessage;
+        }
+        theIssue.body = warning;
+        delete theIssue.number;
+        const warningComment = await context.github.issues.createComment(theIssue);
+        context.log({ 'warningComment': warningComment });
+      }
+      // context.log({ 'prFilesPayload': prFilesPayload});
+    }
   })
 
   // create new branch from content master, change base branch of external PR
