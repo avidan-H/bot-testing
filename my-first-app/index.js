@@ -228,7 +228,7 @@ module.exports = app => {
         context.log.info('lastEvent: ', lastEvent);
         if (lastEvent === 'commit') {
           // Assumption is that the requested reviewer(s) need a reminder
-          msg = reviewersWithPrefix.join('') + 'A lengthy period of time has transpired - please take a look at this PR.';
+          msg = reviewersWithPrefix.join('') + 'This PR won\'t review itself and I\'m not going to do it for you (I bet you\'d like that wouldn\'t you) - look it over, eh?.';
         } else if (lastEvent === 'review') {
           // Assumption is that the person who opened the PR needs a reminder
           msg = '@' + commitAuthorLogin;
