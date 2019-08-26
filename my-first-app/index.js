@@ -22,7 +22,7 @@ function getReviewers(pathToConfigFile = './.github/config.yml') {
  */
 function selectReviewer(reviewers, externalPRs) {
   let prCounter = 0;
-  for(var i = 0; i < externalPRs.length; i++){
+  for (var i = 0; i < externalPRs.length; i++) {
     let pr = externalPRs[i];
     for (const labelObject of pr.labels) {
       if (labelObject.name === externalPRLabel) {
@@ -91,7 +91,15 @@ function getConfigData(pathToConfigFile = './.github/config.yml') {
   const hours = ymlData.hours;
   const minutes = ymlData.minutes;
   const botName = ymlData.bot_name;
-  return { owner, repo, reviewers, days, hours, minutes, botName };
+  return {
+    owner,
+    repo,
+    reviewers,
+    days,
+    hours,
+    minutes,
+    botName
+  };
 }
 
 /**
@@ -116,44 +124,70 @@ module.exports = app => {
   app.log('Yay, the app was loaded!')
 
 
-  createScheduler(app, { interval: 1 * 60 * 1000 }); // every one minutes
+  createScheduler(app, {
+    interval: 1 * 60 * 1000
+  }); // every one minutes
   app.on('schedule.repository', async context => {
     // const config = await context.config('config.yml');
-    const { owner, repo, days, hours, minutes, botName } = getConfigData();
+    const {
+      owner,
+      repo,
+      days,
+      hours,
+      minutes,
+      botName
+    } = getConfigData();
     let timestamp = new Date(Date.now() - timeSpanInMilliseconds(days, hours, minutes));
     timestamp = timestamp.toISOString().replace(/\.\d{3}\w$/, '');
 
     const query = `repo:${owner}/${repo} is:open updated:<${timestamp} is:pr`;
 
-    const params = { q: query, sort: 'updated', order: 'desc' }
+    const params = {
+      q: query,
+      sort: 'updated',
+      order: 'desc'
+    }
 
     context.log(params, 'searching %s/%s for stale issues', owner, repo)
     const staleIssuesPayload = await context.github.search.issuesAndPullRequests(params);
-    context.log({ 'stalePRsPayload': staleIssuesPayload })
+    context.log({
+      'stalePRsPayload': staleIssuesPayload
+    })
     if (staleIssuesPayload.data.total_count > 0) {
       let staleIssues = staleIssuesPayload.data.items;
 
       for (const issue of staleIssues) {
         context.log.info('looking at PR with issue number #', issue.number);
-        const contextPR = context.issue({ pull_number: issue.number })
+        const contextPR = context.issue({
+          pull_number: issue.number
+        })
         delete contextPR.number; // deprecated, uses pull_number instead
-        const contextIssue = context.issue({ issue_number: issue.number })
+        const contextIssue = context.issue({
+          issue_number: issue.number
+        })
         delete contextIssue.number; // deprecated, uses issue_number instead
-        const prPayload = await context.github.pullRequests.get({ ...contextPR });
+        const prPayload = await context.github.pullRequests.get({
+          ...contextPR
+        });
         const sha = prPayload.data.head.sha;
 
         // Get a list of requested reviewers for the PR
         let requestedReviewers = prPayload.data.requested_reviewers.map(requestedReviewer => requestedReviewer.login);
 
         // Get commit timestamp
-        const commitPayload = await context.github.repos.getCommit({ ...contextIssue, ref: sha });
+        const commitPayload = await context.github.repos.getCommit({
+          ...contextIssue,
+          ref: sha
+        });
         // context.log({ 'prPayload': prPayload });
         // context.log({ 'commitPayload': commitPayload })
         const commitAuthorLogin = commitPayload.data.author.login;
         const lastCommitDate = commitPayload.data.commit.author.date;
-        
+
         // Get review submission time. If no review submitted - set review submission time to 1970
-        const reviewsSubmissionsPayload = await context.github.pullRequests.listReviews({ ...contextPR });
+        const reviewsSubmissionsPayload = await context.github.pullRequests.listReviews({
+          ...contextPR
+        });
         // context.log({ 'reviewsSubmissionsPayload': reviewsSubmissionsPayload })
         const reviewsSubmissions = reviewsSubmissionsPayload.data;
         let reviewSubmissionDate = new Date(0);
@@ -166,12 +200,14 @@ module.exports = app => {
           context.log('updated reviewSubmissionDate: ', reviewSubmissionDate)
         }
 
-        // get last comment timestamp
-        const commentsPayload = await context.github.issues.listComments({ ...contextIssue });
+        // Get last comment timestamp
+        const commentsPayload = await context.github.issues.listComments({
+          ...contextIssue
+        });
         // context.log({ 'commentsPayload': commentsPayload });
         let comments = commentsPayload.data;
-        // get all comments excluding our bot's welcome message that starts with "Thank" and our bot's message to include relevant files that starts with "Hey"
-        comments = comments.filter( comment => !((comment.body.startsWith('Thank') || comment.body.startsWith('Hey')) && comment.user.login.endsWith('[bot]')));
+        // Get all comments excluding our bot's welcome message that starts with "Thank" and our bot's message to include relevant files that starts with "Hey"
+        comments = comments.filter(comment => !((comment.body.startsWith('Thank') || comment.body.startsWith('Hey')) && comment.user.login.endsWith('[bot]')));
         // context.log({ 'comments': comments });
         let lastCommentTimestamp = new Date(0);
         let lastComment;
@@ -221,7 +257,10 @@ module.exports = app => {
               continue;
             }
             // Otherwise create comment to consider closing the issue
-            let nudgeComment = context.issue({ issue_number: issue.number, body: msg });
+            let nudgeComment = context.issue({
+              issue_number: issue.number,
+              body: msg
+            });
             delete nudgeComment.number;
             let nudgePayload = await context.github.issues.createComment(nudgeComment);
             continue;
@@ -234,10 +273,13 @@ module.exports = app => {
           } else {
             // Else assume the person who opened the PR is waiting on the response of one of the reviewers
             msg = reviewersWithPrefix.join('') + staleMessage + ' What\'s new since @' + commenter + '\'s last comment?';
-          } 
+          }
         }
         context.log.info('about to send "', msg, '" to issue #', issue.number);
-        let nudgeComment = context.issue({ issue_number: issue.number, body: msg });
+        let nudgeComment = context.issue({
+          issue_number: issue.number,
+          body: msg
+        });
         delete nudgeComment.number;
         let nudgePayload = await context.github.issues.createComment(nudgeComment);
       }
@@ -245,15 +287,22 @@ module.exports = app => {
   })
 
   app.on('pull_request.opened', async context => {
-    const pr = context.payload.pull_request; 
+    const pr = context.payload.pull_request;
     const isFork = pr.head.repo.fork;
-    context.log({ 'isFork': isFork })
+    context.log({
+      'isFork': isFork
+    })
     if (isFork) {
-      let issue = context.issue({ issue_number: pr.number, pull_number: pr.number });
+      let issue = context.issue({
+        issue_number: pr.number,
+        pull_number: pr.number
+      });
 
       // Get Potential Reviewers
       const potentialReviewers = getReviewers();
-      const externalPRsPayload = await context.github.pullRequests.list({ ...issue });
+      const externalPRsPayload = await context.github.pullRequests.list({
+        ...issue
+      });
       const externalPRs = externalPRsPayload.data;
       const reviewer = selectReviewer(potentialReviewers, externalPRs);
       context.log('reviewer: ', reviewer);
@@ -265,12 +314,21 @@ module.exports = app => {
       const makeComment = await context.github.issues.createComment(issue);
 
       // Add Label
-      const addExternalLabel = await context.github.issues.addLabels({ ...issue, labels: [externalPRLabel] })
-      context.log({ 'addExternalLabel': addExternalLabel })
+      const addExternalLabel = await context.github.issues.addLabels({
+        ...issue,
+        labels: [externalPRLabel]
+      })
+      context.log({
+        'addExternalLabel': addExternalLabel
+      })
 
       // Check pull request and make sure that all necessary files are present
-      const prFilesPayload = await context.github.pulls.listFiles({ ...issue });
-      context.log({ 'prFilesPayload': prFilesPayload});
+      const prFilesPayload = await context.github.pulls.listFiles({
+        ...issue
+      });
+      context.log({
+        'prFilesPayload': prFilesPayload
+      });
       const prFiles = prFilesPayload.data;
       const files = prFiles.map(fileObject => fileObject.filename);
       const fileNames = files.join('\n');
@@ -310,7 +368,10 @@ module.exports = app => {
       if (typeof changed !== 'undefined' && requires.length !== 0) { // create the relevant comment
         console.log('changed: ', changed);
         console.log('requires: ', requires);
-        let theIssue = context.issue({ issue_number: pr.number, pull_number: pr.number });
+        let theIssue = context.issue({
+          issue_number: pr.number,
+          pull_number: pr.number
+        });
         let unittestMessage = ' It is very likely that the reviewer will want you to add a unittest for your code changes in the `' + dirName + '/' + dirName + '_test.py` file - please refer to the documentation https://github.com/demisto/content/tree/master/docs/tests/unit-testing for more details.'
         let changelogMessage = ' Because of your changes you will also need to update the `' + dirName + '/' + 'CHANGELOG.md` file - please refer to the documentation https://github.com/demisto/content/tree/master/docs/release_notes for more details.'
         let warning = 'Hey @' + pullRequester + ', it appears you made changes to the ' + changed + ' file in the ' + dirName + ' integration directory.';
@@ -323,12 +384,19 @@ module.exports = app => {
         theIssue.body = warning;
         delete theIssue.number;
         const warningComment = await context.github.issues.createComment(theIssue);
-        context.log({ 'warningComment': warningComment });
+        context.log({
+          'warningComment': warningComment
+        });
       }
 
       // Assign Reviewer
-      const reviewRequest = await context.github.pullRequests.createReviewRequest({ ...issue, reviewers: [reviewer] })
-      context.log({ 'reviewRequest': reviewRequest })
+      const reviewRequest = await context.github.pullRequests.createReviewRequest({
+        ...issue,
+        reviewers: [reviewer]
+      })
+      context.log({
+        'reviewRequest': reviewRequest
+      })
       return reviewRequest;
     }
   })
