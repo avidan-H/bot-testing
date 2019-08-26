@@ -140,7 +140,7 @@ module.exports = app => {
     let timestamp = new Date(Date.now() - timeSpanInMilliseconds(days, hours, minutes));
     timestamp = timestamp.toISOString().replace(/\.\d{3}\w$/, '');
 
-    const query = `repo:${owner}/${repo} is:open updated:<${timestamp} is:pr`;
+    const query = `repo:${owner}/${repo} is:open updated:<${timestamp} is:pr label:${externalPRLabel}`;
 
     const params = {
       q: query,
@@ -219,7 +219,6 @@ module.exports = app => {
           commenter = lastComment.user.login;
           context.log.info('commenter: ', commenter);
         }
-
 
         // The lastEvent decides who needs a reminder
         let msg;
