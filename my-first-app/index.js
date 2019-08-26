@@ -249,7 +249,8 @@ module.exports = app => {
           context.log.info('botLogin: ', botLogin, '\ncommenter: ', commenter);
           if (commenter === botLogin) {
             // PR already has nudging comment from our bot
-            msg = reviewersWithPrefix.join('') + 'These reminders don\'t seem to be working and the issue is getting pretty stale - consider whether this PR is still relevant or should be closed.';
+            msg = reviewersWithPrefix.join('') + 'These reminders don\'t seem to be working and the issue is getting pretty stale - consider whether this \
+            PR is still relevant or should be closed.';
             if (lastComment.body === msg) {
               // PR already has comment from our bot to consider closing the issue
               context.log.info('Skip: PR already has comment from our bot to consider closing the issue');
@@ -307,7 +308,8 @@ module.exports = app => {
       context.log('reviewer: ', reviewer);
 
       // Add welcome comment to external PR
-      const welcomeMessage = 'Thank you for your contribution. Your generosity and caring are unrivaled! Rest assured - our content wizard @' + reviewer + ' will very shortly look over your proposed changes.';
+      const welcomeMessage = 'Thank you for your contribution. Your generosity and caring are unrivaled! Rest assured - \
+      our content wizard @' + reviewer + ' will very shortly look over your proposed changes.';
       issue.body = welcomeMessage;
       delete issue.number;
       const makeComment = await context.github.issues.createComment(issue);
@@ -371,8 +373,11 @@ module.exports = app => {
           issue_number: pr.number,
           pull_number: pr.number
         });
-        let unittestMessage = ' It is very likely that the reviewer will want you to add a unittest for your code changes in the `' + dirName + '/' + dirName + '_test.py` file - please refer to the documentation https://github.com/demisto/content/tree/master/docs/tests/unit-testing for more details.'
-        let changelogMessage = ' Because of your changes you will also need to update the `' + dirName + '/' + 'CHANGELOG.md` file - please refer to the documentation https://github.com/demisto/content/tree/master/docs/release_notes for more details.'
+        let unittestMessage = ' It is very likely that the reviewer will want you to add a unittest for your \
+        code changes in the `' + dirName + '/' + dirName + '_test.py` file - please refer to the documentation \
+        https://github.com/demisto/content/tree/master/docs/tests/unit-testing for more details.'
+        let changelogMessage = ' Because of your changes you will also need to update the `' + dirName + '/' + 'CHANGELOG.md` \
+        file - please refer to the documentation https://github.com/demisto/content/tree/master/docs/release_notes for more details.'
         let warning = 'Hey @' + pullRequester + ', it appears you made changes to the ' + changed + ' file in the ' + dirName + ' integration directory.';
         if (requires.includes('unit test')) {
           warning += unittestMessage;
