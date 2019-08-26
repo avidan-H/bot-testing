@@ -1,13 +1,8 @@
 const fs = require('fs');
-const jwt = require('jsonwebtoken');
 const YAML = require('yaml');
 const createScheduler = require('probot-scheduler')
-// import openssl from 'openssl';
 
-const organization = 'demisto';
 const externalPRLabel = 'Contribution';
-// const appID = '38236';
-// const pathToPEM = '/Users/ahessing/Downloads/my-first-appp.2019-08-19.private-key.pem';
 
 /**
  * Reads in potential reviewer list from config file
@@ -26,7 +21,6 @@ function getReviewers(pathToConfigFile = './.github/config.yml') {
  * @param {Array} externalPRs 
  */
 function selectReviewer(reviewers, externalPRs) {
-  // context.log({ 'externalPRs': externalPRs });
   let prCounter = 0;
   for(var i = 0; i < externalPRs.length; i++){
     let pr = externalPRs[i];
@@ -37,11 +31,7 @@ function selectReviewer(reviewers, externalPRs) {
       }
     }
   }
-  // context.log('externalPRs.length: ' + String(externalPRs.length));
-  // context.log('prCounter: ' + String(prCounter));
   const reviewer = reviewers[prCounter % reviewers.length];
-  // updateConfig();
-  // context.log({ 'reviewer': reviewer });
   return reviewer;
 }
 
@@ -126,7 +116,7 @@ module.exports = app => {
   app.log('Yay, the app was loaded!')
 
 
-  createScheduler(app, { interval: 10 * 60 * 1000 }); // every ten minutes
+  createScheduler(app, { interval: 1 * 60 * 1000 }); // every one minutes
   app.on('schedule.repository', async context => {
     // const config = await context.config('config.yml');
     const { owner, repo, days, hours, minutes, botName } = getConfigData();
@@ -144,7 +134,6 @@ module.exports = app => {
       let staleIssues = staleIssuesPayload.data.items;
 
       for (const issue of staleIssues) {
-        // context.log({ 'issue': issue })
         context.log.info('looking at PR with issue number #', issue.number);
         const contextPR = context.issue({ pull_number: issue.number })
         delete contextPR.number; // deprecated, uses pull_number instead
@@ -153,7 +142,7 @@ module.exports = app => {
         const prPayload = await context.github.pullRequests.get({ ...contextPR });
         const sha = prPayload.data.head.sha;
 
-        // get a list of requested reviewers for the PR
+        // Get a list of requested reviewers for the PR
         let requestedReviewers = prPayload.data.requested_reviewers.map(requestedReviewer => requestedReviewer.login);
 
         // Get commit timestamp
@@ -203,13 +192,14 @@ module.exports = app => {
         let lastEvent = getLastEvent(lastCommitDate, lastCommentTimestamp, reviewSubmissionDate);
         context.log.info('lastEvent: ', lastEvent);
         if (lastEvent === 'commit') {
-          // then the assumption is that the requested reviewer(s) need a reminder
+          // Assumption is that the requested reviewer(s) need a reminder
           msg = reviewersWithPrefix.join('') + 'A lengthy period of time has transpired - please take a look at this PR.';
         } else if (lastEvent === 'review') {
-          // then the assumption is that the person who opened the PR needs a reminder
+          // Assumption is that the person who opened the PR needs a reminder
           msg = '@' + commitAuthorLogin;
           context.log.info('reviewStatus: ', reviewStatus);
           if (reviewStatus !== 'APPROVED') {
+            // This if block for reviewStatus === 'PENDING' may be extraneous - need to double check.
             if (reviewStatus === 'PENDING') {
               msg = reviewersWithPrefix.join('') + 'It would be awfully nice if you would review @' + commitAuthorLogin + '\'s magnanimous contribution.';
             } else {
@@ -230,19 +220,19 @@ module.exports = app => {
               context.log.info('Skip: PR already has comment from our bot to consider closing the issue');
               continue;
             }
-            // otherwise send message to consider closing the issue
+            // Otherwise create comment to consider closing the issue
             let nudgeComment = context.issue({ issue_number: issue.number, body: msg });
             delete nudgeComment.number;
             let nudgePayload = await context.github.issues.createComment(nudgeComment);
             continue;
           }
-          // determine who the last commenter was - assume that whichever party was not the commenter needs a reminder
+          // Determine who the last commenter was - assume that whichever party was not the commenter needs a reminder
           if (commenter !== commitAuthorLogin) {
             let staleMessage = 'This PR is starting to get a little stale and possibly even a little moldy and smelly.';
             // The last comment wasn't made by the PR opener (and is probably one of the requested reviewers) assume that the PR opener needs a nudge
             msg = '@' + commitAuthorLogin + ' ' + staleMessage + ' Are there any changes you wanted to make since @' + commenter + '\'s last comment?';
           } else {
-            // Else assume the person who opened the response is waiting on the response of one of the reviewers
+            // Else assume the person who opened the PR is waiting on the response of one of the reviewers
             msg = reviewersWithPrefix.join('') + staleMessage + ' What\'s new since @' + commenter + '\'s last comment?';
           } 
         }
@@ -250,21 +240,8 @@ module.exports = app => {
         let nudgeComment = context.issue({ issue_number: issue.number, body: msg });
         delete nudgeComment.number;
         let nudgePayload = await context.github.issues.createComment(nudgeComment);
-        // break;
       }
     }
-  })
-
-  // app.on('*', async context => {
-  // })
-
-  app.on('issues.opened', async context => {
-    // context.log({ event: context.event, action: context.payload })
-    // const issueComment = context.issue({ body: 'Thanks for opening this issue!' })
-    // return context.github.issues.createComment(issueComment)
-
-    // const installations = context.github.apps.listInstallations;
-    // context.log('installations: ', installations);
   })
 
   app.on('pull_request.opened', async context => {
@@ -288,7 +265,6 @@ module.exports = app => {
       const makeComment = await context.github.issues.createComment(issue);
 
       // Add Label
-      // const issue = context.issue({ pull_number: pr.number })
       const addExternalLabel = await context.github.issues.addLabels({ ...issue, labels: [externalPRLabel] })
       context.log({ 'addExternalLabel': addExternalLabel })
 
@@ -353,68 +329,7 @@ module.exports = app => {
       // Assign Reviewer
       const reviewRequest = await context.github.pullRequests.createReviewRequest({ ...issue, reviewers: [reviewer] })
       context.log({ 'reviewRequest': reviewRequest })
-      // return reviewRequest
-    }
-  })
-
-  // create new branch from content master, change base branch of external PR
-  app.on('pull_request_review.submitted', async context => {
-    const { github } = context
-    const pr = context.payload.pull_request;
-    const review = context.payload.review;
-    let isExternal = false;
-    for (const labelObject of pr.labels) {
-      if (labelObject.name === externalPRLabel) {
-        isExternal = true;
-        break;
-      }
-    }
-    // if ( pr.labels.includes(externalPRLabel) ) {
-    if ( isExternal ) {
-      // if an external PR, check if submitted review was 'approved'
-      if (review.state === 'approved') {
-
-        const issue = context.issue({ number: pr.number })
-        context.log('about to try and create new ref')
-
-
-        // // if external PR approved, create new branch from content master named the same as the external PR branch
-        // const branchName = 'refs/heads/' + pr.head.ref;
-        // const commitSHA = pr.base.sha;
-        // const newBranch = github.gitdata.createRef({ ...issue, ref: branchName, sha: commitSHA })
-
-        // context.log({ 'newBranch': newBranch })
-
-      
-        // change base branch of the PR to the newly created branch and merge
-        // github.pullRequests.update({
-        //   owner: string,
-        //   repo: string,
-        //   number: number,
-        //   title?: string,
-        //   body?: string,
-        //   state?: "open" | "closed",
-        //   base?: string,
-        //   maintainer_can_modify?: boolean
-        // })
-        // const changeBaseBranch = await github.pullRequests.update({ ...issue, base: ('new_base_' + pr.head.ref) })
-
-        // context.log({ 'changeBaseBranch': changeBaseBranch })
-
-        const installations = await github.apps.listInstallations()
-
-        context.log({ 'installations': installations })
-
-        // const installationToken = await github.apps.createInstallationToken()
-
-        // merge
-
-        // const merge = await github.pullRequests.merge({ ...issue, merge_method: 'squash' })
-
-        // context.log({ 'merge': merge })
-
-        // open new pr from new branch to master
-      }
+      return reviewRequest;
     }
   })
 
